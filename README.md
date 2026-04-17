@@ -1,17 +1,17 @@
-# Walmart Near-Real-Time Data Warehouse 
+# Walmart Near-Real-Time Data Warehouse (Simulated)
 
-A complete Data Warehousing project that simulates near-real-time ETL using the Hybrid Join algorithm to integrate streaming transactional data with master data for advanced analytics.
+A complete Data Warehousing project that simulates near-real-time ETL using the Hybrid Join algorithm to integrate transactional data streams with master data for advanced analytics.
 
 ---
 
 ## Project Overview
-This project builds a near-real-time Data Warehouse for Walmart to process and analyze streaming transactional data efficiently. It simulates real-world ETL pipelines using Python and integrates data into a Star Schema for OLAP analysis.
+This project builds a simulated near-real-time Data Warehouse for Walmart to process and analyze continuously arriving transactional data. It demonstrates real-world ETL pipeline concepts using Python by ingesting data in chunks (to mimic streaming) and integrating it into a Star Schema for OLAP analysis.
 
 ---
 
 ## Key Objectives
-- Integrate streaming transaction data with master data
-- Implement Hybrid Join algorithm for efficient joins
+- Simulate streaming transaction data and integrate it with master data
+- Implement the Hybrid Join algorithm for efficient stream–relation joins
 - Design a Star Schema Data Warehouse
 - Enable advanced analytical queries (OLAP)
 
@@ -21,7 +21,7 @@ This project builds a near-real-time Data Warehouse for Walmart to process and a
 
 - Data Warehousing
 - ETL (Extract, Transform, Load)
-- Stream Processing
+- Stream Processing (Simulated)
 - Star Schema Design
 - OLAP Queries (Slice, Dice, Drill-down)
 
@@ -30,19 +30,19 @@ This project builds a near-real-time Data Warehouse for Walmart to process and a
 ## Hybrid Join Algorithm
 
 The Hybrid Join algorithm enables efficient joining of:
-- Streaming Data (S)
+- Simulated Streaming Data (S)
 - Disk-based Master Data (R)
 
 ### Key Components:
 - Hash Table (10000 slots)
 - FIFO Queue (for fairness)
 - Disk Buffer (partition-based loading)
-- Stream Buffer (handles bursty data)
+- Stream Buffer (handles bursty data simulation)
 
 ### Features:
 - Memory-efficient processing
-- Near real-time data integration
-- Thread-based stream simulation
+- Simulated near-real-time data integration
+- Multi-threaded stream simulation using Python
 
 ---
 
@@ -86,9 +86,9 @@ The Hybrid Join algorithm enables efficient joining of:
 ## How to Run
 
 1. Run `DWBI_Proj.sql` in MySQL
-2. Configure DB credentials in Python
-3. Run Hybrid Join script
-4. Execute OLAP queries
+2. Configure database credentials in the Python script
+3. Run the Hybrid Join ETL script
+4. Execute OLAP queries on the populated Data Warehouse
 
 ---
 
@@ -102,18 +102,19 @@ The Hybrid Join algorithm enables efficient joining of:
 
 ## Limitations
 
-- Memory constraints due to fixed hash table
-- FIFO processing delays newer records
-- Dependency on master data availability
+- Simulated streaming using CSV files instead of real-time data sources
+- Memory constraints due to fixed hash table size
+- FIFO processing may delay newer records under heavy load
+- Dependency on availability and completeness of master data
 
 ---
 
 ## Learning Outcomes
 
-- Real-time ETL pipeline design
-- Efficient join algorithms
-- Data warehouse modeling
-- Handling streaming data & concurrency
+- Understanding of near-real-time ETL concepts through simulation
+- Implementation of efficient stream–relation join algorithms
+- Practical experience with data warehouse modeling (Star Schema)
+- Handling concurrency and streaming-like data processing in Python
 
 ---
 
