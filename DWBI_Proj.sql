@@ -1,5 +1,13 @@
-CREATE DATABASE dataWP;
-USE dataWP;
+-- =====================================================
+-- COMPLETE DW SCRIPT (Creation + All Analysis Queries)
+-- Script to create the database, tables, and run all analyses
+-- =====================================================
+
+-- Drop existing database if it exists 
+DROP DATABASE IF EXISTS eesha;
+
+CREATE DATABASE eesha;
+USE eesha;
 
 -- Dimension: Time
 CREATE TABLE Dim_Time (
@@ -70,11 +78,9 @@ CREATE INDEX idx_store_fk ON Fact_Sales (Store_ID_FK);
 CREATE INDEX idx_supplier_fk ON Fact_Sales (Supplier_ID_FK);
 CREATE INDEX idx_date_fk ON Fact_Sales (Date_Key_FK);
 
-SELECT * FROM Fact_Sales;
+-- VERIFICATION QUERIES (Run after data is loaded)
 
-SELECT * FROM Dim_Product;
-
-SELECT * FROM Dim_Customer;
+SELECT 'Data loaded successfully! Run the analysis queries below.' AS Status;
 
 -- query 1 - Identifies the top 5 products by revenue, split by weekdays and weekends, with monthly breakdowns for a year
 
@@ -171,7 +177,7 @@ JOIN Dim_Customer C ON F.Customer_ID_FK = C.Customer_ID
 WHERE 
     (T.Year > (SELECT MAX(Year) FROM Dim_Time) - 1)
     OR
-    (T.Year = (SELECT MAX(Year) FROM Dim_Time) AND T.Month >= (SELECT MAX(Month) - 5 FROM Dim_Time))
+    (T.Year = (SELECT MAX(Year) FROM Dim_Time) AND T.Month >= (SELECT MAX(Month) FROM Dim_Time) - 5)
 GROUP BY C.City_Category, C.Marital_Status, T.Year, T.Month
 ORDER BY T.Year, T.Month, C.City_Category, C.Marital_Status;
 
@@ -237,7 +243,10 @@ SELECT
     Product_Category,
     Month,
     Monthly_Total,
-    ROUND(((Monthly_Total - Prev_Month_Total) / Prev_Month_Total) * 100, 2) AS MoM_Growth
+    CASE 
+        WHEN Prev_Month_Total IS NULL OR Prev_Month_Total = 0 THEN NULL
+        ELSE ROUND(((Monthly_Total - Prev_Month_Total) / Prev_Month_Total) * 100, 2)
+    END AS MoM_Growth
 FROM Sales_With_Prev
 ORDER BY Product_Category, Month;
 
@@ -309,7 +318,10 @@ SELECT
     curr.Store_Name,
     curr.Quarter,
     curr.Quarterly_Revenue,
-    ROUND(((curr.Quarterly_Revenue - prev.Quarterly_Revenue) / prev.Quarterly_Revenue) * 100, 2) AS Growth_Percent
+    CASE 
+        WHEN prev.Quarterly_Revenue IS NULL OR prev.Quarterly_Revenue = 0 THEN NULL
+        ELSE ROUND(((curr.Quarterly_Revenue - prev.Quarterly_Revenue) / prev.Quarterly_Revenue) * 100, 2)
+    END AS Growth_Percent
 FROM Store_Quarterly_Sales curr
 LEFT JOIN Store_Quarterly_Sales prev
     ON curr.Store_ID = prev.Store_ID
@@ -361,10 +373,10 @@ WITH Monthly_Revenue AS (
 
 SELECT 
     curr.*,
-    ROUND(
-        ((curr.Monthly_Revenue - prev.Monthly_Revenue) / prev.Monthly_Revenue) * 100,
-        2
-    ) AS Volatility
+    CASE 
+        WHEN prev.Monthly_Revenue IS NULL OR prev.Monthly_Revenue = 0 THEN NULL
+        ELSE ROUND(((curr.Monthly_Revenue - prev.Monthly_Revenue) / prev.Monthly_Revenue) * 100, 2)
+    END AS Volatility
 FROM Monthly_Revenue curr
 LEFT JOIN Monthly_Revenue prev
     ON curr.Store_ID = prev.Store_ID
@@ -372,7 +384,7 @@ LEFT JOIN Monthly_Revenue prev
    AND (curr.Year * 12 + curr.Month) = (prev.Year * 12 + prev.Month + 1)
 ORDER BY curr.Store_ID, curr.Supplier_ID, curr.Year, curr.Month;
 
--- query 16 - Top 5 Products Purchased Together Across Multiple Orders
+-- query 16 - Top 5 Products Purchased Together Across Multiple Orders (Product Affinity Analysis)
 
 WITH Product_Pairs AS (
     SELECT 
@@ -386,14 +398,22 @@ WITH Product_Pairs AS (
 ),
 
 Pair_Frequency AS (
-    SELECT Product1, Product2,
+    SELECT 
+        Product1, 
+        Product2,
         COUNT(DISTINCT Order_ID) AS Frequency
     FROM Product_Pairs
     GROUP BY Product1, Product2
 )
 
-SELECT * FROM Pair_Frequency
-ORDER BY Frequency DESC
+SELECT 
+    P1.Product_Name AS Product1_Name,
+    P2.Product_Name AS Product2_Name,
+    pf.Frequency
+FROM Pair_Frequency pf
+JOIN Dim_Product P1 ON pf.Product1 = P1.Product_ID
+JOIN Dim_Product P2 ON pf.Product2 = P2.Product_ID
+ORDER BY pf.Frequency DESC
 LIMIT 5;
 
 -- query 17 - Yearly Revenue Trends by Store, Supplier, and Product with ROLLUP
@@ -427,37 +447,63 @@ GROUP BY P.Product_Name ORDER BY P.Product_Name;
 WITH Daily_Product_Sales AS (
     SELECT 
         F.Product_ID_FK,
+        P.Product_Name,
         T.Date_Key,
-        SUM(F.Revenue) AS Daily_Revenue
+        SUM(F.Revenue) AS Daily_Revenue,
+        COUNT(*) AS Daily_Transactions
     FROM Fact_Sales F
     JOIN Dim_Time T ON F.Date_Key_FK = T.Date_Key
-    GROUP BY F.Product_ID_FK, T.Date_Key
+    JOIN Dim_Product P ON F.Product_ID_FK = P.Product_ID
+    GROUP BY F.Product_ID_FK, P.Product_Name, T.Date_Key
 ),
 
 Average_Sales AS (
     SELECT 
         Product_ID_FK,
-        AVG(Daily_Revenue) AS Avg_Daily_Revenue
+        AVG(Daily_Revenue) AS Avg_Daily_Revenue,
+        STDDEV(Daily_Revenue) AS StdDev_Daily_Revenue
     FROM Daily_Product_Sales
     GROUP BY Product_ID_FK
 )
 
 SELECT 
-    dps.Product_ID_FK,
+    dps.Product_Name,
     dps.Date_Key,
-    dps.Daily_Revenue,
-    avgS.Avg_Daily_Revenue
+    ROUND(dps.Daily_Revenue, 2) AS Daily_Revenue,
+    ROUND(dps.Daily_Transactions, 0) AS Daily_Transactions,
+    ROUND(avgS.Avg_Daily_Revenue, 2) AS Avg_Daily_Revenue,
+    ROUND(avgS.StdDev_Daily_Revenue, 2) AS StdDev_Daily_Revenue,
+    CASE 
+        WHEN dps.Daily_Revenue > avgS.Avg_Daily_Revenue + 2 * avgS.StdDev_Daily_Revenue THEN 'EXTREME SPIKE'
+        WHEN dps.Daily_Revenue > 2 * avgS.Avg_Daily_Revenue THEN 'HIGH SPIKE'
+        ELSE 'Moderate'
+    END AS Spike_Level
 FROM Daily_Product_Sales dps
 JOIN Average_Sales avgS 
     ON dps.Product_ID_FK = avgS.Product_ID_FK
 WHERE dps.Daily_Revenue > 2 * avgS.Avg_Daily_Revenue
-ORDER BY dps.Product_ID_FK, dps.Date_Key;
+ORDER BY (dps.Daily_Revenue / avgS.Avg_Daily_Revenue) DESC
+LIMIT 100;
 
 -- query 20 - Create a View STORE_QUARTERLY_SALES for Optimized Sales Analysis
 
+DROP VIEW IF EXISTS STORE_QUARTERLY_SALES;
+
 CREATE VIEW STORE_QUARTERLY_SALES AS
-SELECT S.Store_Name, T.Year, T.Quarter, SUM(F.Revenue) AS Total_Revenue
+SELECT 
+    S.Store_Name, 
+    T.Year, 
+    T.Quarter, 
+    SUM(F.Revenue) AS Total_Revenue,
+    SUM(F.Quantity_Sold) AS Total_Quantity,
+    COUNT(*) AS Transaction_Count,
+    ROUND(AVG(F.Revenue), 2) AS Avg_Transaction_Value
 FROM Fact_Sales F
 JOIN Dim_Store S ON F.Store_ID_FK = S.Store_ID
 JOIN Dim_Time T ON F.Date_Key_FK = T.Date_Key
 GROUP BY S.Store_Name, T.Year, T.Quarter;
+
+-- Optional: View the view results
+SELECT * FROM STORE_QUARTERLY_SALES 
+ORDER BY Year DESC, Quarter, Store_Name
+LIMIT 20;
